@@ -8,6 +8,7 @@ public abstract class BaseService<T> : IService<T>
 {
     public IRulePipeline RulePipeline { get; }
     public ILogger<T> Logger { get; }
+    public Guid InstanceId => RulePipeline.InstanceId;
     public BaseService(IRulePipeline rulePipeline, ILogger<T> logger)
     {
         ArgumentNullException.ThrowIfNull(rulePipeline, nameof(rulePipeline));
@@ -15,6 +16,7 @@ public abstract class BaseService<T> : IService<T>
 
         RulePipeline = rulePipeline;
         Logger = logger;
+        Logger.LogInformation($"{GetType().Name} initialized, instance ID: {InstanceId}");
     }
 }
 
@@ -22,6 +24,7 @@ public abstract class BaseService<T, R1> : IService<T, R1>
 {
     public IRulePipeline RulePipeline { get; }
     public ILogger<T> Logger { get; }
+    public Guid InstanceId => RulePipeline.InstanceId;
     public R1 RepositoryOne { get; }
 
     public BaseService(IRulePipeline rulePipeline, ILogger<T> logger, R1 repositoryOne)
@@ -33,6 +36,7 @@ public abstract class BaseService<T, R1> : IService<T, R1>
         RulePipeline = rulePipeline;
         Logger = logger;
         RepositoryOne = repositoryOne;
+        Logger.LogInformation($"{GetType().Name} initialized, instance ID: {InstanceId}");
     }
 }
 
@@ -40,6 +44,7 @@ public abstract class BaseService<T, R1, R2> : IService<T, R1, R2>, IUnitOfWork
 {
     public IRulePipeline RulePipeline { get; }
     public ILogger<T> Logger { get; }
+    public Guid InstanceId => RulePipeline.InstanceId;
     public R1 RepositoryOne { get; }
     public R2 RepositoryTwo { get; }
 
@@ -62,8 +67,9 @@ public abstract class BaseService<T, R1, R2> : IService<T, R1, R2>, IUnitOfWork
 
         RepositoryTwo = repositoryTwo;
         (RepositoryTwo as IBaseRepository).Context = context;
+
+        Logger.LogInformation($"{GetType().Name} initialized with repositories and context, instance ID: {InstanceId}");
         
-        Logger.LogInformation($"{GetType().Name} initialized with repositories and context.");
     }
 
     public void SaveChanges()

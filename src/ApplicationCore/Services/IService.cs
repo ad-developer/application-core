@@ -8,6 +8,8 @@ public interface IService<T>
 {
     IRulePipeline RulePipeline { get; }
     ILogger<T> Logger { get; }
+
+    Guid InstanceId { get; }
 }
 
 public interface IService<T, R1> : IService<T> 

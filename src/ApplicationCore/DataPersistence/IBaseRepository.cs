@@ -1,9 +1,12 @@
 using System.Linq.Expressions;
+using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.DataPersistence;
 
 public interface IBaseRepository
 {
+    Guid InstanceId { get; }
+    ILogger? Logger { get; }
     bool SaveChanges { get; set; }
     IContext Context { get; set; }
 }

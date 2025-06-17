@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace ApplicationCore.Rules;
 
 public static class Extensions
@@ -6,6 +8,8 @@ public static class Extensions
     {
         ArgumentNullException.ThrowIfNull(rulePipeline, nameof(rulePipeline));
         ArgumentNullException.ThrowIfNull(flowObject, nameof(flowObject));
+
+        rulePipeline.Logger.LogInformation($"Setting flow object of type {flowObject.GetType().Name} with InstanceId {rulePipeline.InstanceId}");
 
         rulePipeline.FlowObject = flowObject;
 
@@ -19,6 +23,7 @@ public static class Extensions
         {
             try
             {
+                rulePipeline.Logger.LogInformation($"Executing rule of type {typeof(T).Name} with InstanceId {rulePipeline.InstanceId}");
                 rule.Execute(rulePipeline, values);
             }
             catch (Exception ex)

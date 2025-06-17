@@ -1,17 +1,19 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.DataPersistence;
 
 public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepository<TEntity, TId>, IDisposable 
                                         where TEntity : class, IEntity<TId> 
 {
-    public IContext Context { get; set;  } = context;
+    public IContext Context { get; set;} = context;
 
-    public DbSet<TEntity> Entity { get; } = context.Set<TEntity>();
+    public DbSet<TEntity> Entity  => context.Set<TEntity>();
 
     public bool SaveChanges { get; set; } = true;
-    
+    public Guid InstanceId  => Guid.NewGuid();
+    public ILogger? Logger { get;}
 
     public virtual async Task<IEnumerable<TEntity>> GetAllAsync()
     {
@@ -53,6 +55,7 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             await Context.SaveChangesAsync(cancellationToken);
         }
+        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} added by {addedBy} at {entity.AddedDateTime}");
 
         return entity;
     }
@@ -70,28 +73,30 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             await Context.SaveChangesAsync(cancellationToken);
         }
+        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} updated by {updatedBy} at {entity.UpdatedDateTime}");
         return entity;
     }
-    
+
     public virtual async Task DeleteAsync(TId id, string deletedBy, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(deletedBy, nameof(deletedBy));
         ArgumentNullException.ThrowIfNull(id, nameof(id));
-        
+
         var entity = await GetByIdAsync(id);
         if (entity is null)
         {
             throw new ArgumentNullException(nameof(entity), $"Entity {nameof(entity)}not found");
         }
-       
+
         entity.UpdatedBy = deletedBy;
         entity.UpdatedDateTime = DateTime.UtcNow;
         entity.IsDeleted = true;
-       
-        if(SaveChanges)
+
+        if (SaveChanges)
         {
             await Context.SaveChangesAsync(cancellationToken);
         }
+        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} deleted by {deletedBy} at {entity.UpdatedDateTime}");
     }
 
     public virtual IEnumerable<TEntity> GetAll()
@@ -134,6 +139,7 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             Context.SaveChanges();
         }
+        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} added by {addedBy} at {entity.AddedDateTime}");
         return entity;
     }
 
@@ -150,6 +156,7 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             Context.SaveChanges();
         }
+        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} updated by {updatedBy} at {entity.UpdatedDateTime}");
         return entity;
     }
 
@@ -157,7 +164,7 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
     {
         ArgumentException.ThrowIfNullOrEmpty(deletedBy, nameof(deletedBy));
         ArgumentNullException.ThrowIfNull(id, nameof(id));
-            
+
         var entity = GetById(id);
         if (entity is null)
         {
@@ -165,19 +172,22 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         }
 
         entity.UpdatedBy = deletedBy;
-        entity.UpdatedDateTime = DateTime.UtcNow;  
-        entity.IsDeleted = true;  
-        
-        if(SaveChanges)
+        entity.UpdatedDateTime = DateTime.UtcNow;
+        entity.IsDeleted = true;
+
+        if (SaveChanges)
         {
             Context.SaveChanges();
         }
+        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} deleted by {deletedBy} at {entity.UpdatedDateTime}");
     }
     
     private bool _disposed = false;
 
     protected virtual void Dispose(bool disposing)
     {
+        Logger?.LogInformation($"Disposing {GetType().Name} with InstanceId: {InstanceId}");
+
         if (!_disposed)
         {
             if (disposing)

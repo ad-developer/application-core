@@ -9,21 +9,25 @@ public class RulePipeline : IRulePipeline
 
     public Dictionary<string, object> FlowObjects { get; } = new Dictionary<string, object>();
 
-    private readonly ILogger<RulePipeline> _logger;
-    IServiceProvider _services;
+   public ILogger Logger { get; }
+
+    public Guid InstanceId { get; } = Guid.NewGuid();
+
+    public IServiceProvider Services {get; }
+
     public RulePipeline(ILogger<RulePipeline> logger, IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(logger, nameof(logger));
         ArgumentNullException.ThrowIfNull(services, nameof(services));
-        
-        _logger = logger;
-        _services = services;
+
+        Logger = logger;
+        Services = services;
     }
 
     public IRule? RetrieveRule(Type ruleType)
     {
-        _logger.LogInformation($"Retrieving rule of type {ruleType.FullName}");
-        var rule = _services.GetService(ruleType) as IRule;
+        Logger.LogInformation($"Retrieving rule of type {ruleType.FullName}");
+        var rule = Services.GetService(ruleType) as IRule;
         return rule;
     }
 }

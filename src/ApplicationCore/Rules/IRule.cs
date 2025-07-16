@@ -1,9 +1,6 @@
-using Microsoft.Extensions.Logging;
-
 namespace ApplicationCore.Rules;
 
 public interface IRule
 {
-    ILogger Logger { get; } 
-    void Execute(IRulePipeline rulePipeline, object values);
+    void Execute(IRulePipeline rulePipeline, Dictionary<string, object>? values = null);
 }

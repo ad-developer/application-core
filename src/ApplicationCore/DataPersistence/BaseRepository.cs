@@ -1,19 +1,37 @@
 using System.Linq.Expressions;
+using ApplicationCore.Logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.DataPersistence;
 
-public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepository<TEntity, TId>, IDisposable 
+public abstract class BaseRepository<TRepository, TEntity, TId> : IBaseRepository<TEntity, TId>, IDisposable 
                                         where TEntity : class, IEntity<TId> 
 {
-    public IContext Context { get; set;} = context;
+    public IContext Context { get; set;}
 
-    public DbSet<TEntity> Entity  => context.Set<TEntity>();
+    public DbSet<TEntity> Entity  => Context.Set<TEntity>();
 
     public bool SaveChanges { get; set; } = true;
-    public Guid InstanceId  => Guid.NewGuid();
-    public ILogger? Logger { get;}
+    
+    public Guid InstanceId => Guid.NewGuid();
+
+    public ILogger Logger { get; }
+
+    public Guid TrackingId { get; set; } = Guid.NewGuid();
+
+    public LoggerIdentity LoggerIdentity { get; set; }
+
+    public BaseRepository(IContext context, ILogger<TRepository> logger, ILoggerIdentityService loggerIdentityService)
+    {
+        ArgumentNullException.ThrowIfNull(context, nameof(context));
+        ArgumentNullException.ThrowIfNull(logger, nameof(logger));
+        ArgumentNullException.ThrowIfNull(loggerIdentityService, nameof(loggerIdentityService));
+
+        Context = context;
+        Logger = logger;
+        LoggerIdentity = loggerIdentityService.GetLoggerIdentity();
+    }
 
     public virtual async Task<IEnumerable<TEntity>> GetAllAsync()
     {
@@ -55,7 +73,7 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             await Context.SaveChangesAsync(cancellationToken);
         }
-        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} added by {addedBy} at {entity.AddedDateTime}");
+        this.LogInformation($"Entity of type {typeof(TEntity).Name} added async.");
 
         return entity;
     }
@@ -73,7 +91,8 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             await Context.SaveChangesAsync(cancellationToken);
         }
-        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} updated by {updatedBy} at {entity.UpdatedDateTime}");
+
+        this.LogInformation($"Entity of type {typeof(TEntity).Name} updated async.");
         return entity;
     }
 
@@ -96,7 +115,8 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             await Context.SaveChangesAsync(cancellationToken);
         }
-        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} deleted by {deletedBy} at {entity.UpdatedDateTime}");
+
+        this.LogInformation($"Entity of type {typeof(TEntity).Name} deleted async.");
     }
 
     public virtual IEnumerable<TEntity> GetAll()
@@ -139,7 +159,8 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             Context.SaveChanges();
         }
-        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} added by {addedBy} at {entity.AddedDateTime}");
+
+        this.LogInformation($"Entity of type {typeof(TEntity).Name} added.");
         return entity;
     }
 
@@ -156,7 +177,8 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             Context.SaveChanges();
         }
-        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} updated by {updatedBy} at {entity.UpdatedDateTime}");
+
+        this.LogInformation($"Entity of type {typeof(TEntity).Name} updated.");
         return entity;
     }
 
@@ -179,7 +201,8 @@ public abstract class BaseRepository<TEntity, TId>(IContext context) : IBaseRepo
         {
             Context.SaveChanges();
         }
-        Logger?.LogInformation($"Entity of type {typeof(TEntity).Name} deleted by {deletedBy} at {entity.UpdatedDateTime}");
+
+        this.LogInformation($"Entity of type {typeof(TEntity).Name} deleted");
     }
     
     private bool _disposed = false;

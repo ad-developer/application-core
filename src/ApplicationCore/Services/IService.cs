@@ -1,23 +1,22 @@
 using ApplicationCore.DataPersistence;
+using ApplicationCore.Logging;
 using ApplicationCore.Rules;
 using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.Services;
 
-public interface IService<T>
+public interface IService : ITrackingLogger
 {
     IRulePipeline RulePipeline { get; }
-    ILogger<T> Logger { get; }
-
     Guid InstanceId { get; }
 }
 
-public interface IService<T, R1> : IService<T> 
+public interface IService<R1> : IService 
 {
     R1 RepositoryOne { get; }
 }
 
-public interface IService<T, R1, R2> : IService<T>
+public interface IService<R1, R2> : IService
 {
     IContext Context { get; }
     R1 RepositoryOne { get; }

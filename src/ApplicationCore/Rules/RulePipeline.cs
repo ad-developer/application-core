@@ -9,11 +9,11 @@ public class RulePipeline : IRulePipeline
 
     public Dictionary<string, object> FlowObjects { get; } = new Dictionary<string, object>();
 
-   public ILogger Logger { get; }
+    public ILogger Logger { get; }
 
     public Guid InstanceId { get; } = Guid.NewGuid();
 
-    public IServiceProvider Services {get; }
+    public IServiceProvider Services { get; }
 
     public RulePipeline(ILogger<RulePipeline> logger, IServiceProvider services)
     {
@@ -23,11 +23,16 @@ public class RulePipeline : IRulePipeline
         Logger = logger;
         Services = services;
     }
-
     public IRule? RetrieveRule(Type ruleType)
     {
         Logger.LogInformation($"Retrieving rule of type {ruleType.FullName}");
         var rule = Services.GetService(ruleType) as IRule;
+        return rule;
+    }
+     public IValidationRule? RetrieveValidationRule(Type ruleType)
+    {
+        Logger.LogInformation($"Retrieving validation rule of type {ruleType.FullName}");
+        var rule = Services.GetService(ruleType) as IValidationRule;
         return rule;
     }
 }

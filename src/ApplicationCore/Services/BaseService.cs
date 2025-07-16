@@ -1,62 +1,80 @@
 using ApplicationCore.DataPersistence;
+using ApplicationCore.Logging;
 using ApplicationCore.Rules;
 using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.Services;
 
-public abstract class BaseService<T> : IService<T>
+public abstract class BaseService<T> : IService
 {
     public IRulePipeline RulePipeline { get; }
-    public ILogger<T> Logger { get; }
+    public ILogger Logger { get; }
     public Guid InstanceId => RulePipeline.InstanceId;
-    public BaseService(IRulePipeline rulePipeline, ILogger<T> logger)
+
+    public Guid TrackingId { get; set ; } = Guid.NewGuid();
+    public LoggerIdentity LoggerIdentity { get; set; }
+
+    public BaseService(IRulePipeline rulePipeline, ILogger<T> logger, ILoggerIdentityService loggerIdentityService)
     {
         ArgumentNullException.ThrowIfNull(rulePipeline, nameof(rulePipeline));
         ArgumentNullException.ThrowIfNull(logger, nameof(logger));
+        ArgumentNullException.ThrowIfNull(loggerIdentityService, nameof(loggerIdentityService));
 
         RulePipeline = rulePipeline;
         Logger = logger;
-        Logger.LogInformation($"{GetType().Name} initialized, instance ID: {InstanceId}");
+
+        LoggerIdentity = loggerIdentityService.GetLoggerIdentity();
+
+        this.LogInformation($"{GetType().Name} initialized.");
     }
 }
 
-public abstract class BaseService<T, R1> : IService<T, R1>
+public abstract class BaseService<T, R1> : IService<R1>
 {
     public IRulePipeline RulePipeline { get; }
-    public ILogger<T> Logger { get; }
+    public ILogger Logger { get; }
     public Guid InstanceId => RulePipeline.InstanceId;
     public R1 RepositoryOne { get; }
+    public Guid TrackingId { get; set ; } = Guid.NewGuid();
+    public LoggerIdentity LoggerIdentity { get; set; }
 
-    public BaseService(IRulePipeline rulePipeline, ILogger<T> logger, R1 repositoryOne)
+
+    public BaseService(IRulePipeline rulePipeline, ILogger<T> logger, ILoggerIdentityService loggerIdentityService, R1 repositoryOne)
     {
         ArgumentNullException.ThrowIfNull(rulePipeline, nameof(rulePipeline));
         ArgumentNullException.ThrowIfNull(logger, nameof(logger));
         ArgumentNullException.ThrowIfNull(repositoryOne, nameof(repositoryOne));
+        ArgumentNullException.ThrowIfNull(loggerIdentityService, nameof(loggerIdentityService));
 
         RulePipeline = rulePipeline;
         Logger = logger;
         RepositoryOne = repositoryOne;
-        Logger.LogInformation($"{GetType().Name} initialized, instance ID: {InstanceId}");
+
+        LoggerIdentity = loggerIdentityService.GetLoggerIdentity();
+
+        this.LogInformation($"{GetType().Name} initialized.");
     }
 }
 
-public abstract class BaseService<T, R1, R2> : IService<T, R1, R2>, IUnitOfWork
+public abstract class BaseService<T, R1, R2> : IService<R1, R2>, IUnitOfWork
 {
     public IRulePipeline RulePipeline { get; }
-    public ILogger<T> Logger { get; }
+    public ILogger Logger { get; }
     public Guid InstanceId => RulePipeline.InstanceId;
     public R1 RepositoryOne { get; }
     public R2 RepositoryTwo { get; }
-
     public IContext Context {get;}
+    public Guid TrackingId { get; set ; } = Guid.NewGuid();
+    public LoggerIdentity LoggerIdentity { get; set; }
 
-    public BaseService(IRulePipeline rulePipeline, ILogger<T> logger, R1 repositoryOne, R2 repositoryTwo, IContext context)
+    public BaseService(IRulePipeline rulePipeline, ILogger<T> logger, ILoggerIdentityService loggerIdentityService, R1 repositoryOne, R2 repositoryTwo, IContext context)
     {
         ArgumentNullException.ThrowIfNull(rulePipeline, nameof(rulePipeline));
         ArgumentNullException.ThrowIfNull(logger, nameof(logger));
         ArgumentNullException.ThrowIfNull(repositoryOne, nameof(repositoryOne));
         ArgumentNullException.ThrowIfNull(repositoryTwo, nameof(repositoryTwo));
         ArgumentNullException.ThrowIfNull(context, nameof(context));
+        ArgumentNullException.ThrowIfNull(loggerIdentityService, nameof(loggerIdentityService));
 
         RulePipeline = rulePipeline;
         Logger = logger;
@@ -68,8 +86,9 @@ public abstract class BaseService<T, R1, R2> : IService<T, R1, R2>, IUnitOfWork
         RepositoryTwo = repositoryTwo;
         (RepositoryTwo as IBaseRepository).Context = context;
 
-        Logger.LogInformation($"{GetType().Name} initialized with repositories and context, instance ID: {InstanceId}");
-        
+        LoggerIdentity = loggerIdentityService.GetLoggerIdentity();
+
+        this.LogInformation($"{GetType().Name} initialized.");
     }
 
     public void SaveChanges()

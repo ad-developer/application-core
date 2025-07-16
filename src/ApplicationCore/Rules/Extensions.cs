@@ -15,8 +15,8 @@ public static class Extensions
 
         return rulePipeline;
     }
-    
-    public static IRulePipeline ExecuteRule<T>(this IRulePipeline rulePipeline, object values)
+
+    public static IRulePipeline ExecuteRule<T>(this IRulePipeline rulePipeline, Dictionary<string, object>? values = null)
     {
         var rule = rulePipeline.RetrieveRule(typeof(T));
         if (rule is not null)
@@ -29,6 +29,25 @@ public static class Extensions
             catch (Exception ex)
             {
                 throw new InvalidOperationException($"Error executing rule of type {typeof(T).Name}", ex);
+            }
+        }
+
+        return rulePipeline;
+    }
+    
+    public static IRulePipeline ExecuteValidationRule<T>(this IRulePipeline rulePipeline, Dictionary<string, object>? values = null, Action<bool>? onValidationComplete = null)
+    {
+        var rule = rulePipeline.RetrieveValidationRule(typeof(T));
+        if (rule is not null)
+        {
+            try
+            {
+                rulePipeline.Logger.LogInformation($"Executing validation rule of type {typeof(T).Name} with InstanceId {rulePipeline.InstanceId}");
+                rule.Execute(rulePipeline, values, onValidationComplete);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Error executing validation rule of type {typeof(T).Name}", ex);
             }
         }
 

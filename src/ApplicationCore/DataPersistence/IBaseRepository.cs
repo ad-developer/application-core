@@ -1,12 +1,12 @@
 using System.Linq.Expressions;
+using ApplicationCore.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.DataPersistence;
 
-public interface IBaseRepository
+public interface IBaseRepository : ITrackingLogger
 {
     Guid InstanceId { get; }
-    ILogger? Logger { get; }
     bool SaveChanges { get; set; }
     IContext Context { get; set; }
 }

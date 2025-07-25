@@ -1,12 +1,12 @@
 using ApplicationCore.DataPersistence;
 using ApplicationCore.Logging;
 using ApplicationCore.Rules;
-using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.Services;
 
-public interface IService : ITrackingLogger
+public interface IService 
 {
+    ITrackingLogger TrackingLogger { get; set; }
     IRulePipeline RulePipeline { get; }
     Guid InstanceId { get; }
 }

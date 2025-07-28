@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.Logging;
 
-public class TrackingLogger<T> : ITrackingLogger
+public class TrackingLogger<T> : ITrackingLogger<T>
 {
     public ILogger Logger { get; }
     public Guid TrackingId { get; set; } = Guid.NewGuid();

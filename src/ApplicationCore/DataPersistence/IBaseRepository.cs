@@ -3,10 +3,9 @@ using ApplicationCore.Logging;
 
 namespace ApplicationCore.DataPersistence;
 
-public interface IBaseRepository 
+public interface IBaseRepository : ITrackable
 {
     Guid InstanceId { get; }
-    ITrackingLogger TrackingLogger { get; set; }
     bool SaveChanges { get; set; }
     IContext Context { get; set; }
 }

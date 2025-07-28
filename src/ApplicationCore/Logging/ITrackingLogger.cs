@@ -8,3 +8,8 @@ public interface ITrackingLogger
     Guid TrackingId { get; set; }
     LoggerIdentity LoggerIdentity { get; set; }
 }
+
+public interface ITrackingLogger<T> : ITrackingLogger
+{
+
+}

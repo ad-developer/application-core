@@ -15,18 +15,18 @@ public class TrackingAttribute : ActionFilterAttribute
     {
         if (!StartingPoint)
         {
-            var controller = context.Controller as ITrackingLogger;
+            var controller = context.Controller as ITrackable;
             if (controller == null)
                 throw new InvalidOperationException("Controller must implement ITrackingLogger to use TrackingAttribute.");
 
-            var trackingId = controller.TrackingId;
+            var trackingId = controller.TrackingLogger.TrackingId;
             var requuest = context.HttpContext.Request;
             var requestTrackingId = requuest.Headers["X-TRACKING"].ToString();
             if (!string.IsNullOrEmpty(requestTrackingId))
             {
                 if (Guid.TryParse(requestTrackingId, out var parsedTrackingId))
                 {
-                    controller.TrackingId = parsedTrackingId;
+                    controller.TrackingLogger.TrackingId = parsedTrackingId;
                 }
                 else
                 {
@@ -41,11 +41,11 @@ public class TrackingAttribute : ActionFilterAttribute
 
     public override void OnActionExecuted(ActionExecutedContext context)
     {
-        var controller = context.Controller as ITrackingLogger;
+        var controller = context.Controller as ITrackable;
         if (controller == null)
             throw new InvalidOperationException("Controller must implement ITrackingLogger to use TrackingAttribute.");
 
         var response = context.HttpContext.Response;
-        response.Headers["X-TRACKING"] = controller.TrackingId.ToString();
+        response.Headers["X-TRACKING"] = controller.TrackingLogger.TrackingId.ToString();
     }
 }

@@ -13,7 +13,7 @@ public class CacheService : ICacheService
     private static readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly IMemoryCache _memoryCache;
 
-    CacheService(ITrackingLogger trackingLogger, IMemoryCache memoryCache)
+    CacheService(ITrackingLogger<CacheService> trackingLogger, IMemoryCache memoryCache)
     {
         ArgumentNullException.ThrowIfNull(trackingLogger, nameof(trackingLogger));
         ArgumentNullException.ThrowIfNull(memoryCache, nameof(memoryCache));
@@ -192,3 +192,4 @@ public class CacheService : ICacheService
     }
 
 }
+

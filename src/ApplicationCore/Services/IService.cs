@@ -4,9 +4,8 @@ using ApplicationCore.Rules;
 
 namespace ApplicationCore.Services;
 
-public interface IService 
+public interface IService  : ITrackable
 {
-    ITrackingLogger TrackingLogger { get; set; }
     IRulePipeline RulePipeline { get; }
     Guid InstanceId { get; }
 }

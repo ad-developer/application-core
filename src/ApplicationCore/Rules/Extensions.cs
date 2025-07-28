@@ -1,30 +1,31 @@
+using ApplicationCore.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.Rules;
 
 public static class Extensions
 {
-    public static IRulePipeline SetFlowObject<T>(this IRulePipeline rulePipeline, T flowObject)
+    public static IRulePipeline  SetFlowObject<T>(this IRulePipeline rulePipeline, T flowObject)
     {
         ArgumentNullException.ThrowIfNull(rulePipeline, nameof(rulePipeline));
         ArgumentNullException.ThrowIfNull(flowObject, nameof(flowObject));
 
-        rulePipeline.Logger.LogInformation($"Setting flow object of type {flowObject.GetType().Name} with InstanceId {rulePipeline.InstanceId}");
+        rulePipeline.TrackingLogger.LogInformation($"Setting flow object of type {flowObject.GetType().Name} with InstanceId {rulePipeline.InstanceId}");
 
         rulePipeline.FlowObject = flowObject;
 
         return rulePipeline;
     }
 
-    public static IRulePipeline ExecuteRule<T>(this IRulePipeline rulePipeline, Dictionary<string, object>? values = null)
+    public static async Task<IRulePipeline> ExecuteRuleAsync<T>(this IRulePipeline rulePipeline, Dictionary<string, object>? values = null)
     {
         var rule = rulePipeline.RetrieveRule(typeof(T));
         if (rule is not null)
         {
             try
             {
-                rulePipeline.Logger.LogInformation($"Executing rule of type {typeof(T).Name} with InstanceId {rulePipeline.InstanceId}");
-                rule.Execute(rulePipeline, values);
+                rulePipeline.TrackingLogger.LogInformation($"Executing rule of type {typeof(T).Name} with InstanceId {rulePipeline.InstanceId}");
+                await rule.ExecuteAsync(rulePipeline, values);
             }
             catch (Exception ex)
             {
@@ -35,15 +36,15 @@ public static class Extensions
         return rulePipeline;
     }
     
-    public static IRulePipeline ExecuteValidationRule<T>(this IRulePipeline rulePipeline, Dictionary<string, object>? values = null, Action<bool>? onValidationComplete = null)
+    public static async Task<IRulePipeline> ExecuteValidationRuleAsync<T>(this IRulePipeline rulePipeline, Dictionary<string, object>? values = null, Action<bool>? onValidationComplete = null)
     {
         var rule = rulePipeline.RetrieveValidationRule(typeof(T));
         if (rule is not null)
         {
             try
             {
-                rulePipeline.Logger.LogInformation($"Executing validation rule of type {typeof(T).Name} with InstanceId {rulePipeline.InstanceId}");
-                rule.Execute(rulePipeline, values, onValidationComplete);
+                rulePipeline.TrackingLogger.LogInformation($"Executing validation rule of type {typeof(T).Name} with InstanceId {rulePipeline.InstanceId}");
+                await rule.ExecuteAsync(rulePipeline, values, onValidationComplete);
             }
             catch (Exception ex)
             {

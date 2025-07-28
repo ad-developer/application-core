@@ -1,10 +1,11 @@
+using ApplicationCore.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.Rules;
 
 public interface IRulePipeline
 {
-    ILogger Logger { get; }
+    ITrackingLogger TrackingLogger { get; }
     Guid InstanceId { get; }
     IServiceProvider Services { get; }
     object? FlowObject { get; set; }

@@ -2,11 +2,10 @@ using ApplicationCore.Logging;
 
 namespace ApplicationCore.Caching;
 
-public interface ICacheService
+public interface ICacheService : ITrackable
 {
     CancellationTokenSource ResetCacheToken { get; set; }
-    ITrackingLogger TrackingLogger { get; set; }
-
+   
     void ClearCache(CancellationTokenSource cancellationTokenSource);
 
     void AddObject<T>(string key, T value, CacheType cacheType, ExpirationType expirationType = ExpirationType.Sliding, int expirationTime = 15, CancellationTokenSource? cancellationTokenSource = null);

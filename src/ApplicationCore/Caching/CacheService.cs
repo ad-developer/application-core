@@ -1,4 +1,3 @@
-
 using ApplicationCore.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Primitives;
@@ -8,20 +7,28 @@ namespace ApplicationCore.Caching;
 public class CacheService : ICacheService
 {
     public CancellationTokenSource ResetCacheToken { get; set; }
-    public ITrackingLogger TrackingLogger { get; set; }
+    public ITrackingLogger? TrackingLogger { get; set; }
 
     private static readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly IMemoryCache _memoryCache;
 
-    CacheService(ITrackingLogger<CacheService> trackingLogger, IMemoryCache memoryCache)
+    public CacheService(ITrackingLogger<CacheService> trackingLogger, IMemoryCache memoryCache)
     {
         ArgumentNullException.ThrowIfNull(trackingLogger, nameof(trackingLogger));
         ArgumentNullException.ThrowIfNull(memoryCache, nameof(memoryCache));
 
         _memoryCache = memoryCache;
         TrackingLogger = trackingLogger;
-        TrackingLogger.LogInformation($"{GetType().Name} initialized.");
+        TrackingLogger?.LogInformation($"{GetType().Name} initialized.");
 
+        ResetCacheToken = new CancellationTokenSource();
+    }
+
+    public CacheService(IMemoryCache memoryCache)
+    {
+        ArgumentNullException.ThrowIfNull(memoryCache, nameof(memoryCache));
+        
+        _memoryCache = memoryCache;
         ResetCacheToken = new CancellationTokenSource();
     }
 
@@ -51,7 +58,7 @@ public class CacheService : ICacheService
           .SetPriority(CacheItemPriority.Low)
           .AddExpirationToken(new CancellationChangeToken(cancellationTokenSource.Token));
         }
-        
+
         if (options is not null)
             _memoryCache.Set(key, value, options);
     }
@@ -106,7 +113,7 @@ public class CacheService : ICacheService
         if (_memoryCache.TryGetValue(key, out T? value))
             return value;
        
-        TrackingLogger.LogInformation($"Cache miss for key: {key}");
+        TrackingLogger?.LogInformation($"Cache miss for key: {key}");
         return default!;
     }
    
@@ -128,7 +135,7 @@ public class CacheService : ICacheService
 
         if (_memoryCache.TryGetValue(key, out T? value))
         {
-            TrackingLogger.LogInformation($"Cache hit for key: {key}");
+            TrackingLogger?.LogInformation($"Cache hit for key: {key}");
             return value;
         }
 
@@ -151,7 +158,7 @@ public class CacheService : ICacheService
 
             if (_memoryCache.TryGetValue(key, out T? value))
             {
-                TrackingLogger.LogInformation($"Cache hit for key: {key}");
+                TrackingLogger?.LogInformation($"Cache hit for key: {key}");
                 return value;
             }
 
@@ -172,24 +179,23 @@ public class CacheService : ICacheService
         if (cancellationTokenSource == ResetCacheToken)
             ResetCacheToken = new CancellationTokenSource();
 
-        TrackingLogger.LogInformation("Cache clered.");
+        TrackingLogger?.LogInformation("Cache clered.");
     }
     
-    public static string GenerateCacheKey(string key, CacheType cacheType, ITrackingLogger trackingLogger)
+    public static string GenerateCacheKey(string key, CacheType cacheType, ITrackingLogger? trackingLogger)
     {
         ArgumentNullException.ThrowIfNull(key, nameof(key));
-        ArgumentNullException.ThrowIfNull(trackingLogger, nameof(trackingLogger));
+        // trackingLogger can be null now
 
-        if (cacheType == CacheType.UserSession)
-            key = $"{trackingLogger.LoggerIdentity.Name}:{key}";
+        if (cacheType == CacheType.UserSession && trackingLogger != null)
+            key = $"{trackingLogger.LoggerIdentity.LoggerId}:{key}";
 
         if (cacheType == CacheType.GlobalSession)
             key = $"global:{key}";
        
-        trackingLogger.LogInformation($"Generated cache key: {key}");
+        trackingLogger?.LogInformation($"Generated cache key: {key}");
 
         return key;
     }
 
 }
-

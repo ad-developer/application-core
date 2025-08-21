@@ -20,10 +20,9 @@ public abstract class BaseRepository<TRepository, TEntity, TId> : IBaseRepositor
 
     public ITrackingLogger TrackingLogger { get; set; }
 
-    public BaseRepository(IContext context, ILogger<TRepository> logger, ITrackingLogger<TRepository> trackingLogger, ICacheService cacheService)
+    public BaseRepository(IContext context,  ITrackingLogger<TRepository> trackingLogger, ICacheService cacheService)
     {
         ArgumentNullException.ThrowIfNull(context, nameof(context));
-        ArgumentNullException.ThrowIfNull(logger, nameof(logger));
         ArgumentNullException.ThrowIfNull(trackingLogger, nameof(trackingLogger));
         ArgumentNullException.ThrowIfNull(cacheService, nameof(cacheService));
 

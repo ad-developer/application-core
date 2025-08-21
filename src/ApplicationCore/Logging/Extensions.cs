@@ -40,6 +40,16 @@ public static class Extensions
         trackingLogger.Logger.LogError(eventId, exception, message);
     }
 
+    public static void AssignNewTrackingId(this ITrackingLogger trackingLogger, Guid? trackingId)
+    {
+        ArgumentNullException.ThrowIfNull(trackingId, nameof(trackingId));
+        trackingLogger.TrackingId = trackingId.Value;
+    }
+    public static void AssignNewTrackingId(this ITrackingLogger trackingLogger, ITrackingLogger sourceTrackingLogger)
+    {
+        ArgumentNullException.ThrowIfNull(sourceTrackingLogger, nameof(sourceTrackingLogger));
+        trackingLogger.TrackingId = sourceTrackingLogger.TrackingId;
+    }
     internal static string BuildLogMessage(ITrackingLogger logger, string message, Guid? instanceId = null)
     {
         var instanceIdMessage = instanceId.HasValue ? $" InstanceId: {instanceId.Value}" : string.Empty;

@@ -1,0 +1,21 @@
+{
+  "WorkflowName": "Process_OrderItem",
+  "Rules": [
+    {
+      "Name": "ValidateQty",
+      "Type": "Validation",
+      "Mode": "Simple",
+      "TargetProperty": "Quantity",
+      "Operator": "GreaterThan",
+      "TargetValue": "0",
+      "ErrorMessage": "Quantity must be positive"
+    },
+    {
+      "Name": "CalcLineTotal",
+      "Type": "Rule",
+      "Mode": "Complex",
+      "ImplementationType": "App.Rules.CalculateLineItemTotal" 
+      // Logic: Item.Total = Item.Price * Item.Qty;
+    }
+  ]
+}

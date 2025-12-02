@@ -1,0 +1,28 @@
+{
+  "WorkflowName": "Process_Order",
+  "Rules": [
+    {
+      "Name": "CheckOrderDate",
+      "Type": "Validation",
+      "Mode": "Simple",
+      "TargetProperty": "OrderDate",
+      "Operator": "NotNull",
+      "ErrorMessage": "Date required"
+    },
+    {
+      "Name": "ProcessItems",
+      "Type": "Foreach",
+      "CollectionProperty": "Items",  
+      "SubFlowRef": "Process_OrderItem", // Points to file above
+      "Condition": "FlowObject.Items != null"
+    },
+    {
+      "Name": "FinalizeTotal",
+      "Type": "Rule",
+      "Mode": "Complex",
+      "ImplementationType": "App.Rules.SumOrderTotal"
+      // Can iterate FlowObject.Items (which are now updated) 
+      // or use a variable in FlowObjects if the loop set one.
+    }
+  ]
+}

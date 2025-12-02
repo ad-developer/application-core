@@ -1,5 +1,6 @@
-using ApplicationCore.Logging;
+using System.Reflection.Metadata;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 
 namespace ApplicationCore.Caching;
@@ -7,94 +8,57 @@ namespace ApplicationCore.Caching;
 public class CacheService : ICacheService
 {
     public CancellationTokenSource ResetCacheToken { get; set; }
-    public ITrackingLogger? TrackingLogger { get; set; }
 
-    private static readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly ILogger<CacheService> _logger;
     private readonly IMemoryCache _memoryCache;
+    private static readonly SemaphoreSlim _semaphore = new(1, 1);
 
-    public CacheService(ITrackingLogger<CacheService> trackingLogger, IMemoryCache memoryCache)
+    public CacheService(ILogger<CacheService> logger, IMemoryCache memoryCache)
     {
-        ArgumentNullException.ThrowIfNull(trackingLogger, nameof(trackingLogger));
-        ArgumentNullException.ThrowIfNull(memoryCache, nameof(memoryCache));
-
-        _memoryCache = memoryCache;
-        TrackingLogger = trackingLogger;
-        TrackingLogger?.LogInformation($"{GetType().Name} initialized.");
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
 
         ResetCacheToken = new CancellationTokenSource();
+        _logger.LogInformation("CacheService initialized.");
     }
 
-    public CacheService(IMemoryCache memoryCache)
+    public void AddObject<T>(
+        string key,
+        T value,
+        string? userIdentity = null,
+        CacheType cacheType = CacheType.UserSession,
+        ExpirationType expirationType = ExpirationType.Sliding,
+        int expirationTime = 15,
+        CancellationTokenSource? cancellationTokenSource = null)
     {
-        ArgumentNullException.ThrowIfNull(memoryCache, nameof(memoryCache));
-        
-        _memoryCache = memoryCache;
-        ResetCacheToken = new CancellationTokenSource();
-    }
-
-    public void AddObject<T>(string key, T value, CacheType cacheType = CacheType.UserSession, ExpirationType expirationType = ExpirationType.Sliding, int expirationTime = 15, CancellationTokenSource? cancellationTokenSource = null)
-    {
-        ArgumentNullException.ThrowIfNull(key, nameof(key));
-        ArgumentNullException.ThrowIfNull(value, nameof(value));
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(value);
 
         cancellationTokenSource ??= ResetCacheToken;
+        var cacheKey = GenerateCacheKey(key, cacheType, userIdentity);
 
-        key = GenerateCacheKey(key, cacheType, TrackingLogger);
+        var options = CreateCacheOptions(expirationType, expirationTime, cancellationTokenSource);
+        _memoryCache.Set(cacheKey, value, options);
 
-        MemoryCacheEntryOptions? options = null;
-
-        if (expirationType == ExpirationType.Sliding)
-        {
-            options = new MemoryCacheEntryOptions()
-            .SetSlidingExpiration(TimeSpan.FromMinutes(expirationTime))
-            .SetPriority(CacheItemPriority.Low)
-            .AddExpirationToken(new CancellationChangeToken(cancellationTokenSource.Token));
-        }
-
-        if (expirationType == ExpirationType.Absolute)
-        {
-            options = new MemoryCacheEntryOptions()
-          .SetAbsoluteExpiration(TimeSpan.FromMinutes(expirationTime))
-          .SetPriority(CacheItemPriority.Low)
-          .AddExpirationToken(new CancellationChangeToken(cancellationTokenSource.Token));
-        }
-
-        if (options is not null)
-            _memoryCache.Set(key, value, options);
+        _logger.LogInformation("Object cached: {Key}", cacheKey);
     }
 
-    public async Task AddObjectAsync<T>(string key, T value, CacheType cacheType = CacheType.UserSession, ExpirationType expirationType = ExpirationType.Sliding, int expirationTime = 15, CancellationTokenSource? cancellationTokenSource = null)
+    public async Task AddObjectAsync<T>(
+        string key,
+        T value,
+        string? userIdentity = null,
+        CacheType cacheType = CacheType.UserSession,
+        ExpirationType expirationType = ExpirationType.Sliding,
+        int expirationTime = 15,
+        CancellationTokenSource? cancellationTokenSource = null)
     {
-        ArgumentNullException.ThrowIfNull(key, nameof(key));
-        ArgumentNullException.ThrowIfNull(value, nameof(value));
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(value);
 
         await _semaphore.WaitAsync().ConfigureAwait(false);
         try
         {
-            cancellationTokenSource ??= ResetCacheToken;
-
-            key = GenerateCacheKey(key, cacheType, TrackingLogger);
-
-            MemoryCacheEntryOptions? options = null;
-
-            if (expirationType == ExpirationType.Sliding)
-            {
-                options = new MemoryCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromMinutes(expirationTime))
-                .SetPriority(CacheItemPriority.Low)
-                .AddExpirationToken(new CancellationChangeToken(cancellationTokenSource.Token));
-            }
-
-            if (expirationType == ExpirationType.Absolute)
-            {
-                options = new MemoryCacheEntryOptions()
-              .SetAbsoluteExpiration(TimeSpan.FromMinutes(expirationTime))
-              .SetPriority(CacheItemPriority.Low)
-              .AddExpirationToken(new CancellationChangeToken(cancellationTokenSource.Token));
-            }
-
-            if (options is not null)
-                _memoryCache.Set(key, value, options);
+            AddObject(key, value, userIdentity, cacheType, expirationType, expirationTime, cancellationTokenSource);
         }
         finally
         {
@@ -102,76 +66,89 @@ public class CacheService : ICacheService
         }
     }
 
-    public T? GetObject<T>(string key, CacheType cacheType = CacheType.UserSession, CancellationTokenSource? cancellationTokenSource = null)
+    public T? GetObject<T>(
+        string key,
+        string? userIdentity = null,
+        CacheType cacheType = CacheType.UserSession,
+        CancellationTokenSource? cancellationTokenSource = null)
     {
-        ArgumentNullException.ThrowIfNull(key, nameof(key));
+        ArgumentNullException.ThrowIfNull(key);
 
         cancellationTokenSource ??= ResetCacheToken;
+        var cacheKey = GenerateCacheKey(key, cacheType, userIdentity);
 
-        key = GenerateCacheKey(key, cacheType, TrackingLogger);
-
-        if (_memoryCache.TryGetValue(key, out T? value))
-            return value;
-       
-        TrackingLogger?.LogInformation($"Cache miss for key: {key}");
-        return default!;
-    }
-   
-    public Task<T?> GetObjectAsync<T>(string key, CacheType cacheType, CancellationTokenSource? cancellationTokenSource = null)
-    {
-        ArgumentNullException.ThrowIfNull(key, nameof(key));
-
-        return Task.Run(() => GetObject<T>(key, cacheType, cancellationTokenSource));     
-    }
-
-    public T? GetOrAddObject<T>(string key, Func<T> valueFactory, CacheType cacheType, ExpirationType expirationType = ExpirationType.Sliding, int expirationTime = 15, CancellationTokenSource? cancellationTokenSource = null)
-    {
-        ArgumentNullException.ThrowIfNull(key, nameof(key));
-        ArgumentNullException.ThrowIfNull(valueFactory, nameof(valueFactory));
-
-        cancellationTokenSource ??= ResetCacheToken;
-
-        key = GenerateCacheKey(key, cacheType, TrackingLogger);
-
-        if (_memoryCache.TryGetValue(key, out T? value))
+        if (_memoryCache.TryGetValue(cacheKey, out T? value))
         {
-            TrackingLogger?.LogInformation($"Cache hit for key: {key}");
+            _logger.LogDebug("Cache hit: {Key}", cacheKey);
             return value;
         }
 
-        value = valueFactory();
-        AddObject(key, value, cacheType, expirationType, expirationTime, cancellationTokenSource);
+        _logger.LogDebug("Cache miss: {Key}", cacheKey);
+        return default;
+    }
 
+    public Task<T?> GetObjectAsync<T>(
+        string key,
+        string? userIdentity = null,
+        CacheType cacheType = CacheType.UserSession,
+        CancellationTokenSource? cancellationTokenSource = null)
+        => Task.Run(() => GetObject<T>(key, userIdentity, cacheType, cancellationTokenSource));
+
+    public T? GetOrAddObject<T>(
+        string key,
+        Func<T> valueFactory,
+        string? userIdentity = null,
+        CacheType cacheType = CacheType.UserSession,
+        ExpirationType expirationType = ExpirationType.Sliding,
+        int expirationTime = 15,
+        CancellationTokenSource? cancellationTokenSource = null)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(valueFactory);
+
+        cancellationTokenSource ??= ResetCacheToken;
+        var cacheKey = GenerateCacheKey(key, cacheType, userIdentity);
+
+        if (_memoryCache.TryGetValue(cacheKey, out T? existing))
+        {
+            _logger.LogDebug("Cache hit: {Key}", cacheKey);
+            return existing;
+        }
+
+        var value = valueFactory();
+        AddObject(cacheKey, value, userIdentity, cacheType, expirationType, expirationTime, cancellationTokenSource);
         return value;
     }
 
-    public Task<T?> GetOrAddObjectAsync<T>(string key, Func<Task<T>> valueFactory, CacheType cacheType, ExpirationType expirationType = ExpirationType.Sliding, int expirationTime = 15, CancellationTokenSource? cancellationTokenSource = null)
+    public async Task<T?> GetOrAddObjectAsync<T>(
+        string key,
+        Func<Task<T>> valueFactory,
+        string? userIdentity = null,
+        CacheType cacheType = CacheType.UserSession,
+        ExpirationType expirationType = ExpirationType.Sliding,
+        int expirationTime = 15,
+        CancellationTokenSource? cancellationTokenSource = null)
     {
-        ArgumentNullException.ThrowIfNull(key, nameof(key));
-        ArgumentNullException.ThrowIfNull(valueFactory, nameof(valueFactory));
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(valueFactory);
 
-        return Task.Run(async () =>
+        cancellationTokenSource ??= ResetCacheToken;
+        var cacheKey = GenerateCacheKey(key, cacheType, userIdentity);
+
+        if (_memoryCache.TryGetValue(cacheKey, out T? existing))
         {
-            cancellationTokenSource ??= ResetCacheToken;
+            _logger.LogDebug("Cache hit: {Key}", cacheKey);
+            return existing;
+        }
 
-            key = GenerateCacheKey(key, cacheType, TrackingLogger);
-
-            if (_memoryCache.TryGetValue(key, out T? value))
-            {
-                TrackingLogger?.LogInformation($"Cache hit for key: {key}");
-                return value;
-            }
-
-            value = await valueFactory().ConfigureAwait(false);
-            AddObject(key, value, cacheType, expirationType, expirationTime, cancellationTokenSource);
-            return value;
-        });
+        var value = await valueFactory().ConfigureAwait(false);
+        AddObject(cacheKey, value, userIdentity, cacheType, expirationType, expirationTime, cancellationTokenSource);
+        return value;
     }
 
-    public void ClearCache(CancellationTokenSource cancellationTokenSource)
+    public void ClearCache(CancellationTokenSource? cancellationTokenSource = null)
     {
-        if (cancellationTokenSource is null)
-            cancellationTokenSource = ResetCacheToken;
+        cancellationTokenSource ??= ResetCacheToken;
 
         cancellationTokenSource.Cancel();
         cancellationTokenSource.Dispose();
@@ -179,23 +156,36 @@ public class CacheService : ICacheService
         if (cancellationTokenSource == ResetCacheToken)
             ResetCacheToken = new CancellationTokenSource();
 
-        TrackingLogger?.LogInformation("Cache clered.");
+        _logger.LogInformation("Cache cleared.");
     }
-    
-    public static string GenerateCacheKey(string key, CacheType cacheType, ITrackingLogger? trackingLogger)
+
+    private static MemoryCacheEntryOptions CreateCacheOptions(
+        ExpirationType expirationType,
+        int expirationTime,
+        CancellationTokenSource cancellationTokenSource)
     {
-        ArgumentNullException.ThrowIfNull(key, nameof(key));
-        // trackingLogger can be null now
+        var options = new MemoryCacheEntryOptions()
+            .SetPriority(CacheItemPriority.Low)
+            .AddExpirationToken(new CancellationChangeToken(cancellationTokenSource.Token));
 
-        if (cacheType == CacheType.UserSession && trackingLogger != null)
-            key = $"{trackingLogger.LoggerIdentity.LoggerId}:{key}";
-
-        if (cacheType == CacheType.GlobalSession)
-            key = $"global:{key}";
-       
-        trackingLogger?.LogInformation($"Generated cache key: {key}");
-
-        return key;
+        return expirationType switch
+        {
+            ExpirationType.Sliding => options.SetSlidingExpiration(TimeSpan.FromMinutes(expirationTime)),
+            ExpirationType.Absolute => options.SetAbsoluteExpiration(TimeSpan.FromMinutes(expirationTime)),
+            _ => options
+        };
     }
 
+    public static string GenerateCacheKey(string key, CacheType cacheType, string? userIdentity = null)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        return cacheType switch
+        {
+            CacheType.GlobalSession => $"global:{key}",
+            CacheType.UserSession when !string.IsNullOrEmpty(userIdentity) => $"{userIdentity}:{key}",
+            CacheType.UserSession => $"user:{key}",
+            _ => key
+        };
+    }
 }

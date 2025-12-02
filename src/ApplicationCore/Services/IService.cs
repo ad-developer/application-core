@@ -1,13 +1,14 @@
 using ApplicationCore.DataPersistence;
-using ApplicationCore.Logging;
-using ApplicationCore.Rules;
+using ApplicationCore.Rules.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace ApplicationCore.Services;
 
-public interface IService  : ITrackable
+public interface IService  
 {
     IRulePipeline RulePipeline { get; }
     Guid InstanceId { get; }
+    ILogger Logger { get; }
 }
 
 public interface IService<R1> : IService 

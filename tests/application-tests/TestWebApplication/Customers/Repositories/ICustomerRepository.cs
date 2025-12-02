@@ -1,4 +1,4 @@
-using ApplicationCore.DataPersistence;
+using ApplicationCore.Data;
 using TestWebApplication.Customers.Entites;
 
 namespace TestWebApplication.Customers.Repositories;

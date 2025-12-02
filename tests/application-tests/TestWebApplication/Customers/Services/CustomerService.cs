@@ -1,5 +1,5 @@
-using ApplicationCore.Logging;
 using ApplicationCore.Rules;
+using ApplicationCore.Rules.Abstractions;
 using ApplicationCore.Services;
 using TestWebApplication.Customers.Models;
 using TestWebApplication.Customers.Repositories;
@@ -8,7 +8,7 @@ namespace TestWebApplication.Customers.Services;
 
 public class CustomerService : BaseService<CustomerService, ICustomerRepository>, ICustomerService
 {
-    public CustomerService(IRulePipeline rulePipeline, ITrackingLogger<CustomerService> trackingLogger, ICustomerRepository repositoryOne) 
+    public CustomerService(IRulePipeline rulePipeline, ILogger<CustomerService> trackingLogger, ICustomerRepository repositoryOne) 
     : base(rulePipeline, trackingLogger, repositoryOne)
     {
     }

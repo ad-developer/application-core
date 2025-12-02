@@ -1,15 +1,14 @@
-using ApplicationCore.Logging;
 using Microsoft.Extensions.Logging;
 
-namespace ApplicationCore.Rules;
+namespace ApplicationCore.Rules.Abstractions;
 
 public interface IRulePipeline
 {
-    ITrackingLogger TrackingLogger { get; }
+    ILogger Logger { get; }
     Guid InstanceId { get; }
     IServiceProvider Services { get; }
     object? FlowObject { get; set; }
-    Dictionary<string, object> FlowObjects { get; }
+    Dictionary<string, object> FlowObjects { get; } // Shared state for IRules
     IRule? RetrieveRule(Type ruleType);
     IValidationRule? RetrieveValidationRule(Type ruleType);
 }

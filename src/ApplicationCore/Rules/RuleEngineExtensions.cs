@@ -61,14 +61,22 @@ public static class RuleEngineExtensions
                 else if (ruleDef.Type == "Validation")
                 {
                     bool isValid = true;
-                    if (ruleDef.Mode == "Simple") { /* ... Declarative Check ... */ }
-                    else
+                    if (ruleDef.Mode == "Simple")
+                    { 
+                        var simpleRule = new DeclarativeValidationRule(ruleDef);
+                        await simpleRule.ExecuteAsync(pipeline, null, (valid) => isValid = valid, ct); 
+                    }
+                    else // Complex Mode
                     {
-                        /* ... Retrieve ValidationRule ... */
-                        // Simplified for brevity:
                         var ruleType = Type.GetType(ruleDef.ImplementationType ?? "");
-                        var rule = pipeline.RetrieveValidationRule(ruleType!);
-                        await rule!.ExecuteAsync(pipeline, null, valid => isValid = valid, ct);
+                        if (ruleType != null)
+                        {
+                            var rule = pipeline.RetrieveValidationRule(ruleType);
+                            if (rule != null)
+                            {
+                                await rule.ExecuteAsync(pipeline, null, (valid) => isValid = valid, ct);
+                            }
+                        }
                     }
 
                     if (!isValid)

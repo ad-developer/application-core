@@ -16,6 +16,41 @@
       "Mode": "Complex",
       "ImplementationType": "App.Rules.CalculateLineItemTotal" 
       // Logic: Item.Total = Item.Price * Item.Qty;
+    },
+    {
+      "Name": "CheckAgeRange",
+      "Type": "Validation",
+      "Mode": "Simple",
+      "TargetProperty": "Age",
+      "Operator": "Between",
+      "TargetValue": "18,65", 
+      "ErrorMessage": "Age must be between 18 and 65"
+    },
+    {
+      "Name": "ValidateSkuCode",
+      "Type": "Validation",
+      "Mode": "Simple",
+      "TargetProperty": "Sku",
+      "Operator": "Regex",
+      "TargetValue": "^US-\\d{5}$",
+      "ErrorMessage": "SKU must start with US- followed by 5 digits"
+    },
+    {
+      "Name": "CheckForVipTag",
+      "Type": "Validation",
+      "Mode": "Simple",
+      "TargetProperty": "Tags",
+      "Operator": "ListContains",
+      "TargetValue": "VIP",
+      "ErrorMessage": "Order is missing VIP tag"
+    },
+    {
+      "Name": "CheckStatus",
+      "Type": "Validation",
+      "Mode": "Simple",
+      "TargetProperty": "Status",
+      "Operator": "Equals",
+      "TargetValue": "Processing"
     }
   ]
 }

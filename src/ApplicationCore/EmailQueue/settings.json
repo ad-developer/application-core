@@ -1,0 +1,19 @@
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=.;Database=EmailQueueDb;Trusted_Connection=True;"
+  },
+  "EmailQueue": {
+    "PollIntervalSeconds": 5,
+    "BatchSize": 100,
+    "MaxDegreeOfParallelism": 16,
+    "MaxAttempts": 5,
+    "LockSeconds": 120,
+    "SmtpHost": "smtp.example.com",
+    "SmtpPort": 587,
+    "SmtpUser": "user",
+    "SmtpPassword": "password",
+    "SmtpUseSsl": true,
+    "FromAddress": "noreply@example.com",
+    "FromName": "My App"
+  }
+}

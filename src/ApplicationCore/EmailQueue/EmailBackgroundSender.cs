@@ -11,17 +11,25 @@ public class EmailBackgroundSender : BackgroundService
     private readonly EmailQueueOptions _options;
     private readonly ILogger<EmailBackgroundSender> _logger;
     private readonly string _workerId = Guid.NewGuid().ToString();
+    private readonly ISmtpClientFactory _smtpFactory;
+    private readonly IDbContextFactory<EmailQueueDbContext> _dbFactory;
 
-    public EmailBackgroundSender(IServiceProvider services, EmailQueueOptions options, ILogger<EmailBackgroundSender> logger)
+    public EmailBackgroundSender(IServiceProvider services, 
+          EmailQueueOptions options, 
+          IDbContextFactory<EmailQueueDbContext> dbFactory, 
+          ISmtpClientFactory smtpFactory,
+          ILogger<EmailBackgroundSender> logger)
     {
         _services = services;
         _options = options;
+        _dbFactory = dbFactory;
+        _smtpFactory = smtpFactory;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("EmailBackgroundSender starting. WorkerId={workerId}", _workerId);
+        _logger.LogInformation("EmailBackgroundSender started");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -29,134 +37,124 @@ public class EmailBackgroundSender : BackgroundService
             {
                 await ProcessBatchAsync(stoppingToken);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // graceful shutdown
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unhandled error in EmailBackgroundSender loop");
-                // swallow and continue after delay
+                _logger.LogError(ex, "Unhandled background sender error");
             }
 
             await Task.Delay(TimeSpan.FromSeconds(_options.PollIntervalSeconds), stoppingToken);
         }
-
-        _logger.LogInformation("EmailBackgroundSender stopping.");
     }
 
-    private async Task ProcessBatchAsync(CancellationToken cancellationToken)
+    private async Task ProcessBatchAsync(CancellationToken ct)
     {
-        using var scope = _services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<EmailQueueDbContext>();
-        var smtpFactory = scope.ServiceProvider.GetRequiredService<ISmtpClientFactory>();
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
 
-        // 1) Select candidates: pending or failed with NextAttemptAt <= now and not locked
         var now = DateTime.UtcNow;
-        var candidates = await db.EmailMessages
-            .Where(e => (e.Status == EmailStatus.Pending || e.Status == EmailStatus.Failed)
-                        && (e.NextAttemptAt == null || e.NextAttemptAt <= now)
-                        && (e.LockedUntil == null || e.LockedUntil <= now))
+
+        var batch = await db.EmailMessages
+            .Where(e =>
+                (e.Status == EmailStatus.Pending || e.Status == EmailStatus.Failed) &&
+                (e.NextAttemptAt == null || e.NextAttemptAt <= now) &&
+                (e.LockedUntil == null || e.LockedUntil <= now))
             .OrderBy(e => e.CreatedAt)
             .Take(_options.BatchSize)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(ct);
 
-        if (!candidates.Any()) return;
+        if (batch.Count == 0)
+            return;
 
-        // 2) Claim them (set LockedBy/LockedUntil) in a safe way
         var lockUntil = DateTime.UtcNow.AddSeconds(_options.LockSeconds);
-        foreach (var msg in candidates)
+
+        foreach (var msg in batch)
         {
+            msg.Status = EmailStatus.Sending;
             msg.LockedBy = _workerId;
             msg.LockedUntil = lockUntil;
-            msg.Status = EmailStatus.Sending;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await db.SaveChangesAsync(ct);
 
-        // 3) Send in parallel with limited degree
         var semaphore = new SemaphoreSlim(_options.MaxDegreeOfParallelism);
-        var tasks = new List<Task>();
 
-        foreach (var msg in candidates)
+        var tasks = batch.Select(async msg =>
         {
-            await semaphore.WaitAsync(cancellationToken);
-            tasks.Add(Task.Run(async () =>
+            await semaphore.WaitAsync(ct);
+            try
             {
-                try
-                {
-                    await SendSingleAsync(msg, db, smtpFactory, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error sending email {MessageId}", msg.Id);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            }, cancellationToken));
-        }
+                await SendSingleAsync(msg.Id, ct);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
 
         await Task.WhenAll(tasks);
     }
 
-    private async Task SendSingleAsync(EmailMessage msg, EmailQueueDbContext db, ISmtpClientFactory smtpFactory, CancellationToken ct)
+    private async Task SendSingleAsync(Guid messageId, CancellationToken ct)
     {
-        // Reload to ensure we have fresh RowVersion
-        var message = await db.EmailMessages.FirstOrDefaultAsync(m => m.Id == msg.Id, ct);
-        if (message == null) return;
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
 
-        // If locked by another worker or lock expired unexpectedly -> skip
-        if (message.LockedBy != _workerId)
-        {
-            _logger.LogDebug("Message {Id} locked by {lockedBy}, skipping", message.Id, message.LockedBy);
+        var msg = await db.EmailMessages.FirstOrDefaultAsync(x => x.Id == messageId, ct);
+        if (msg == null)
+            return;
+
+        // Ensure still owned by this worker
+        if (msg.LockedBy != _workerId){
+
+             _logger.LogDebug("Message {Id} locked by {lockedBy}, skipping", msg.Id, msg.LockedBy);
             return;
         }
 
         try
         {
-            var mime = MimeMessageFactory.CreateMime(_options, message);
+            var mime = MimeMessageFactory.CreateMime(_options, msg);
 
-            using var client = await smtpFactory.CreateAndConnectAsync();
+            using var client = await _smtpFactory.CreateAndConnectAsync();
             await client.SendAsync(mime, ct);
             await client.DisconnectAsync(true, ct);
 
-            // mark sent
-            message.Status = EmailStatus.Sent;
-            message.SentAt = DateTime.UtcNow;
-            message.LastError = null;
-            message.AttemptCount++;
-            message.LockedBy = null;
-            message.LockedUntil = null;
+            msg.Status = EmailStatus.Sent;
+            msg.SentAt = DateTime.UtcNow;
+            msg.AttemptCount++;
+            msg.LastError = null;
+            msg.LockedBy = null;
+            msg.LockedUntil = null;
 
-            db.Update(message);
             await db.SaveChangesAsync(ct);
-
-            _logger.LogInformation("Email {Id} sent to {To}", message.Id, message.To);
+            _logger.LogInformation("Email {Id} sent to {To}", msg.Id, msg.To);
         }
-        catch (Exception sendEx)
+        catch (Exception ex)
         {
-            _logger.LogWarning(sendEx, "Failed to send email {Id}", message.Id);
+            msg.AttemptCount++;
+            msg.LastError = ex.Message;
+            msg.LockedBy = null;
+            msg.LockedUntil = null;
 
-            message.AttemptCount++;
-            message.LastError = sendEx.Message;
-            message.LockedBy = null;
-            message.LockedUntil = null;
-
-            if (message.AttemptCount >= _options.MaxAttempts)
+            if (msg.AttemptCount >= _options.MaxAttempts)
             {
-                message.Status = EmailStatus.DeadLetter;
-                _logger.LogWarning("Email {Id} moved to dead letter after {attempts} attempts", message.Id, message.AttemptCount);
+                msg.Status = EmailStatus.DeadLetter;
+                _logger.LogWarning("Email {Id} moved to dead letter after {attempts} attempts", msg.Id, msg.AttemptCount);
             }
             else
             {
-                message.Status = EmailStatus.Failed;
+                msg.Status = EmailStatus.Failed;
+                
                 // Exponential backoff for next attempt
-                var backoffSeconds = Math.Pow(2, message.AttemptCount) * 30; // 30s, 60s, 120s...
-                message.NextAttemptAt = DateTime.UtcNow.AddSeconds(backoffSeconds);
-                _logger.LogInformation("Email {Id} scheduled for retry at {when}", message.Id, message.NextAttemptAt);
+                var backoffSeconds = Math.Pow(2, msg.AttemptCount) * 30; // 30s, 60s, 120s...
+                msg.NextAttemptAt = DateTime.UtcNow.AddSeconds(backoffSeconds);
+
+                _logger.LogInformation("Email {Id} scheduled for retry at {when}", msg.Id, msg.NextAttemptAt);
             }
 
-            db.Update(message);
             await db.SaveChangesAsync(ct);
+            _logger.LogWarning(ex, "Email {Id} failed (attempt {Attempt})", msg.Id, msg.AttemptCount);
         }
     }
 }
